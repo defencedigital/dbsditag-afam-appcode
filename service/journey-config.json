@@ -1,0 +1,105 @@
+{
+  "journeySteps": {
+    "start": {
+      "type": "section",
+      "template": "start.njk",
+      "nextStep": "personalDetails"
+    },
+    "personalDetails": {
+      "type": "section",
+      "template": "personal-details.njk",
+      "questions": [
+        "name",
+        "age",
+        "email"
+      ],
+      "nextStep": "serviceBackground",
+      "validationDTO": "PersonalDetailsDTO"
+    },
+    "serviceBackground": {
+      "type": "section",
+      "template": "service-background.njk",
+      "questions": [
+        "armedForces"
+      ],
+      "nextStep": "branchSpecificQuestions",
+      "validationDTO": "ServiceBackgroundDTO"
+    },
+    "branchSpecificQuestions": {
+      "type": "conditional",
+      "template": "branch-specific-questions.njk",
+      "repeatForEach": "armedForces",
+      "branchDetails": {
+        "Army": "armyDetails",
+        "Navy": "navyDetails",
+        "AirForce": "airForceDetails"
+      },
+      "validationDTO": "BranchSpecificQuestionsDTO",
+      "defaultNextStep": "finalSection"
+    },
+    "armyDetails": {
+      "type": "section",
+      "template": "army-details.njk",
+      "questions": [
+        "armyExperience",
+        "armyFileUpload"
+      ],
+      "conditionalNextStep": [
+        {
+          "if": {
+            "armedForces": [
+              "Army"
+            ]
+          },
+          "then": "armyDetails"
+        },
+        {
+          "if": {
+            "armedForces": [
+              "Navy"
+            ]
+          },
+          "then": "navyDetails"
+        },
+        {
+          "if": {
+            "armedForces": [
+              "AirForce"
+            ]
+          },
+          "then": "airForceDetails"
+        }
+      ],
+      "defaultNextStep": "finalSection"
+    },
+    "navyDetails": {
+      "type": "section",
+      "template": "navy-details.njk",
+      "questions": [
+        "navyExperience"
+      ],
+      "conditionalNextStep": "branchSpecificQuestions"
+    },
+    "airForceDetails": {
+      "type": "section",
+      "template": "air-force-details.njk",
+      "questions": [
+        "airForceExperience"
+      ],
+      "conditionalNextStep": "branchSpecificQuestions"
+    },
+    "finalSection": {
+      "type": "section",
+      "template": "final-section.njk",
+      "questions": [
+        "finalThoughts"
+      ],
+      "nextStep": "end"
+    },
+    "end": {
+      "type": "end",
+      "template": "end.njk",
+      "message": "Thank you for completing the journey!"
+    }
+  }
+}
