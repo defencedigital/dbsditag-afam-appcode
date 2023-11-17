@@ -19,3 +19,4 @@ Staticfile.auth
 
 # Ignore VSCode files
 *.code-workspace
+.idea

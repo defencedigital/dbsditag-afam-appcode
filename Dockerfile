@@ -1,14 +1,18 @@
-FROM registry.access.redhat.com/ubi9/nodejs-18:lts
+FROM registry.access.redhat.com/ubi9/nodejs-18 as build-stage
 
-WORKDIR /usr/src/app
-
-COPY service/package*.json ./
-
-RUN npm install
-
+WORKDIR /app
 COPY service/ .
 
-RUN npm run build
-EXPOSE 8080
+USER 0
 
+RUN npm install -g yarn rimraf "@nestjs/cli"
+RUN yarn install
+RUN yarn run build
+
+USER 1001
+
+FROM registry.access.redhat.com/ubi9/nodejs-18
+COPY --from=build-stage /app/ "${HOME}"
 CMD [ "node", "dist/main.js" ]
+
+EXPOSE 8080
