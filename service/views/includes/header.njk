@@ -1,0 +1,9 @@
+{% from "govuk/components/header/macro.njk" import govukHeader %}
+{{ 
+    govukHeader({
+        homepageUrl: "/", 
+        serviceName: serviceName, 
+        serviceUrl: "/", 
+        containerClasses: "govuk-width-container"
+    }) 
+}}

@@ -1,0 +1,4 @@
+{% from "govuk/components/button/macro.njk" import govukButton %}
+{{ govukButton({
+    text: saveButtonLabel if saveButtonLabel else "Submit"
+}) }}

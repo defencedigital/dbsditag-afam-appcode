@@ -1,10 +1,16 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module } from '@nestjs/common';
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { JourneyController } from './controllers/journey.controller';
+import { LocalsPropertyMiddleware } from './middleware/locals-property.service';
+import { ConfigService } from './services';
 
 @Module({
   imports: [],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, JourneyController],
+  providers: [ConfigService],
 })
-export class AppModule {}
+export class AppModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(LocalsPropertyMiddleware).forRoutes('/*');
+  }
+}

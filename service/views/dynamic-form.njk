@@ -1,0 +1,7 @@
+<form action="{{ node }}/submit-form" method="post">
+  {% include "partials/form-inputs/csrf-input.njk" %}
+  {% for question in questions %}
+    {% include "partials/form-inputs/" + question.type + ".njk" %}
+  {% endfor %}
+  {% include "partials/form-inputs/submit-button.njk" %}
+</form>

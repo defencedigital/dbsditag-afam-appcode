@@ -5,6 +5,281 @@
       "template": "start.njk",
       "nextStep": "personalDetails"
     },
+    "whose-medals": {
+      "type": "section",
+      "template": "whose-medals.njk",
+      "validationDTO": "WhoseMedals",
+      "questions": [
+        {
+          "type": "radios",
+          "id": "whoseMedals",
+          "label": "label text",
+          "fieldset": {
+            "legend": {
+              "text": "Who's Medal are you applying for?",
+              "isPageHeading": true,
+              "classes": "govuk-fieldset__legend--l"
+            }
+          },
+          "items": [
+            {
+              "value": "My own",
+              "text": "My own"
+            },
+            {
+              "value": "A living serviceperson",
+              "text": "A living serviceperson",
+              "hint": {
+                "text": "You will need your lasting power of attorney certificate"
+              }
+            },
+            {
+              "value": "A deceased relative",
+              "text": "A deceased relative",
+              "hint": {
+                "text": "You will need the deceased relatives birth certifiate"
+              }
+            }
+          ]
+        },
+        {
+          "type": "details",
+          "summaryText": "Help someone apply online.",
+          "text": "You can help someone apply online as long as you declare that the information is legally theirs to give."
+        }
+      ],
+      "conditionalNextStep": [
+        {
+          "if": {
+            "whoseMedals": [
+              "My own"
+            ]
+          },
+          "then": "active-service"
+        },
+        {
+          "if": {
+            "whoseMedals": [
+              "A living serviceperson"
+            ]
+          },
+          "then": "lasting-power-of-attorney"
+        },
+        {
+          "if": {
+            "whoseMedals": [
+              "A deceased relative"
+            ]
+          },
+          "then": "official-next-of-kin"
+        }
+      ],
+      "defaultNextStep": "finalSection"
+    },
+    "active-service": {
+      "type": "section",
+      "template": "active-service.njk",
+      "validationDTO": "ActiveService",
+      "requiredSections": [
+        "whose-medals"
+      ],
+      "questions": [
+        {
+          "type": "radios",
+          "id": "areYouActive",
+          "label": "are you active",
+          "fieldset": {
+            "legend": {
+              "text": "Are you in active service?",
+              "isPageHeading": true,
+              "classes": "govuk-fieldset__legend--l"
+            }
+          },
+          "items": [
+            {
+              "value": "Yes",
+              "text": "Yes"
+            },
+            {
+              "value": "No",
+              "text": "No"
+            }
+          ]
+        }
+      ],
+      "conditionalNextStep": [
+        {
+          "if": {
+            "areYouActive": [
+              "Yes"
+            ],
+            "whoseMedals": [
+              "My own"
+            ]
+          },
+          "then": "cannot-complete"
+        },
+        {
+          "if": {
+            "areYouActive": [
+              "No"
+            ],
+            "whoseMedals": [
+              "My own"
+            ]
+          },
+          "then": "veterans-badge"
+        },
+        {
+          "if": {
+            "areYouActive": [
+              "No"
+            ],
+            "whoseMedals": [
+              "My own"
+            ]
+          },
+          "then": "own-next-page"
+        }
+      ],
+      "defaultNextStep": "finalSection"
+    },
+    "veterans-badge": {
+      "type": "section",
+      "template": "veterans-badge.njk",
+      "validationDTO": "VeteransBadge",
+      "requiredSections": [
+        "whose-medals",
+        "active-service"
+      ],
+      "requiredAnswers": [
+        {
+          "whoseMedals": "My Own",
+          "activeService": "No"
+        }
+      ],
+      "questions": [
+        {
+          "type": "radios",
+          "id": "veteransBadge",
+          "label": "veterans badge",
+          "fieldset": {
+            "legend": {
+              "text": "Have you reveived your veterans badge?",
+              "isPageHeading": true,
+              "classes": "govuk-fieldset__legend--l"
+            }
+          },
+          "items": [
+            {
+              "value": "Yes",
+              "text": "Yes"
+            },
+            {
+              "value": "No",
+              "text": "No",
+              "conditional": {
+                "type": "text",
+                "conditionalData": {
+                  "text": "We will check our records and send one with your medals."
+                }
+              }
+            },
+            {
+              "value": "I don't know",
+              "text": "I don't know",
+              "conditional": {
+                "type": "text",
+                "conditionalData": {
+                  "text": "We will check our records. If you have not already recieved your veterans badge, we will send one with your medals."
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "nextStep": "which-medals"
+    },
+    "which-medals": {
+      "type": "section",
+      "template": "which-medals.njk",
+      "validationDTO": "WhichMedals",
+      "questions": [
+        {
+          "type": "radios",
+          "id": "whichMedals",
+          "label": "veterans badge",
+          "fieldset": {
+            "legend": {
+              "text": "Do you know which medals you're applying for?",
+              "isPageHeading": true,
+              "classes": "govuk-fieldset__legend--l"
+            }
+          },
+          "items": [
+            {
+              "value": "Yes",
+              "text": "Yes"
+            },
+            {
+              "value": "No",
+              "text": "No",
+              "conditional": {
+                "type": "text",
+                "conditionalData": {
+                  "text": "We will check our records and send all unclaimed medals you're entitled to"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "conditionalNextStep": [
+        {
+          "if": {
+            "areYouActive": [
+              "No"
+            ],
+            "whoseMedals": [
+              "My own"
+            ],
+            "whichMedals": [
+              "Yes"
+            ]
+          },
+          "then": "search-medals"
+        },
+        {
+          "if": {
+            "areYouActive": [
+              "No"
+            ],
+            "whoseMedals": [
+              "My own"
+            ],
+            "whichMedals": [
+              "No"
+            ]
+          },
+          "then": "which-services"
+        }
+      ],
+      "defaultNextStep": "finalSection"
+    },
+    "cannot-complete": {
+      "type": "section",
+      "template": "cannot-complete.njk",
+      "requiredSections": [
+        "whose-medals",
+        "active-service"
+      ],
+      "requiredAnswers": [
+        {
+          "whoseMedals": "My Own",
+          "activeService": "Yes"
+        }
+      ]
+    },
     "personalDetails": {
       "type": "section",
       "template": "personal-details.njk",

@@ -1,0 +1,62 @@
+{% from "govuk/components/cookie-banner/macro.njk" import govukCookieBanner %}
+{% set html %}
+<p class="govuk-body">We use some essential cookies to make this service work.</p>
+<p class="govuk-body">We’d also like to use analytics cookies so we can understand how you use the service and make
+    improvements.</p>
+{% endset %}
+{% set cookieTitle = "Cookies on " + serviceName %}
+<form method="post" action="/cookie-policy" id="cookie-banner-form">
+    {{ govukCookieBanner({
+            ariaLabel: cookieTitle,
+            messages: [
+                {
+                    headingText: cookieTitle,
+                    html: html,
+                    actions: [
+                        {
+                            text: "Accept analytics cookies",
+                            type: "button",
+                            name: "cookies",
+                            value: "accept"
+                        },
+                        {
+                            text: "Reject analytics cookies",
+                            type: "button",
+                            name: "cookies",
+                            value: "reject"
+                        },
+                        {
+                            text: "View cookies",
+                            href: "/cookie-policy"
+                        }
+                    ]
+                }
+            ]
+        }) }}
+    <div id="hide-banner-message" class="govuk-cookie-banner govuk-visually-hidden">
+        <div class="govuk-width-container">
+            <div class="govuk-grid-row">
+                <div class="govuk-grid-column-two-thirds">
+                    <div class="govuk-cookie-banner__content">
+                        <p class="govuk-body">You've
+                            <span id="cookie_decision">accepted</span>
+                            analytics cookies. You can
+                            <a class="govuk-link" href="/cookie-policy">change your cookie settings</a>
+                            at any time.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="govuk-button-group">
+                <a
+                    href="#"
+                    role="button"
+                    draggable="false"
+                    class="govuk-button"
+                    data-module="govuk-button"
+                    data-action="hide-cookie-banner">
+                    Hide this message
+                </a>
+            </div>
+        </div>
+    </div>
+</form>

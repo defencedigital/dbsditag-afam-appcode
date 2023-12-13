@@ -1,109 +1,295 @@
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler, BadRequestException } from '@nestjs/common';
-import {Observable, throwError} from 'rxjs';
-import { map, catchError, switchMap} from 'rxjs/operators';
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+} from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { validate } from 'class-validator';
-import { plainToClass } from 'class-transformer';
-import {Reflector} from "@nestjs/core";
-import { Response } from 'express';
+import { plainToInstance } from 'class-transformer';
+import { Reflector } from '@nestjs/core';
+import {
+  IRenderStepArgs,
+  IRequest,
+  IResponse,
+  ISession,
+  UserData,
+} from 'src/types/interfaces';
+import { ConfigService } from 'src/services';
 
-
+type IConditions = {
+  if: Record<string, string[]>;
+  then: string;
+};
 
 @Injectable()
 export class JourneyInterceptor implements NestInterceptor {
-    private journeyConfig = require('./journey-config.json'); // Path to your JSON configuration
-    private userProgress = new Map(); // Map to track user progress
-    private reflector: Reflector;
+  private journeyConfig = require('../../journey-config.json'); // Path to your JSON configuration
+  private reflector: Reflector;
 
-    constructor(reflector: Reflector) {
-        this.reflector = reflector;
+  private addErrors(request: IRequest, validationErrors) {
+    const { session, body } = request ?? {};
+    session.flash = {};
+    session.flash.errors = validationErrors.reduce(
+      (acc, { property, constraints }) => {
+        acc[property] = {
+          text: constraints[Object.keys(constraints)[0]],
+          id: property,
+        };
+        return acc;
+      },
+      {},
+    );
+
+    session.flash.errorList = validationErrors.map(
+      ({ property, constraints }) => {
+        return {
+          text: constraints[Object.keys(constraints)[0]],
+          href: `#${property}`,
+        };
+      },
+    );
+
+    session.flash.oldUserData = body;
+    delete session.flash.oldUserData._csrf;
+  }
+
+  private getStepConfig(currentStepString: string): {
+    stepConfig: any;
+    template: string;
+    questions: any[];
+    requiredSections: string[];
+  } {
+    const stepConfig = this.journeyConfig.journeySteps[currentStepString];
+    const template = stepConfig?.template;
+    const questions = stepConfig?.questions;
+    const requiredSections = stepConfig?.requiredSections ?? [];
+
+    return { stepConfig, template, questions, requiredSections };
+  }
+  private getUserProgressMap(session) {
+    const userProgressMap = session.userProgress
+      ? new Map(Object.entries(session.userProgress))
+      : new Map();
+    return userProgressMap;
+  }
+
+  updateUserSessionData({
+    currentStep,
+    requestBody,
+    session,
+  }: {
+    currentStep: string;
+    requestBody: UserData;
+    session: ISession;
+  }) {
+    // add the form answers
+    session.userData = { ...(session.userData || {}), ...requestBody };
+    const userProgressMap = this.getUserProgressMap(session);
+    userProgressMap.set(currentStep, true);
+
+    const objectFromMap = Object.fromEntries(userProgressMap);
+    session.userProgress = objectFromMap;
+  }
+
+  constructor(reflector: Reflector) {
+    this.reflector = reflector;
+  }
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const ctx = context.switchToHttp();
+    const request = ctx.getRequest<IRequest>();
+    const params = request.params;
+    const response = ctx.getResponse<IResponse>();
+    const session = request.session;
+    const currentStep = params.node ?? null;
+    const stepConfig = this.journeyConfig.journeySteps[currentStep];
+    const questions = stepConfig?.questions;
+    const userProgress = this.getUserProgressMap(session);
+
+    if (request.method === 'POST') {
+      this.validateBody(currentStep, request.body).then((validationErrors) => {
+        if (validationErrors.length > 0) {
+          this.addErrors(request, validationErrors);
+          request.gotoNext = `${ConfigService.FORM_BASE_PATH}/${currentStep}`;
+        } else {
+          const nextStep = this.determineNextStep({
+            currentStep,
+            userResponse: { ...request.session.userData, ...request.body },
+            session,
+          });
+
+          this.updateUserSessionData({
+            session,
+            requestBody: request.body,
+            currentStep,
+          });
+
+          request.gotoNext = `${ConfigService.FORM_BASE_PATH}/${nextStep}`;
+        }
+      });
     }
 
-    intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-        const ctx = context.switchToHttp();
-        const request = ctx.getRequest();
-        const response = ctx.getResponse<Response>();
-        const session = request.session;
-        const currentStep = request.headers['current-step'];
+    return next.handle().pipe(
+      map(async (data) => {
+        if (request.method === 'GET') {
+          const { userData } = session ?? null;
+          const { errors, errorList } = response.locals ?? {};
+          const { requiredSections } = this.getStepConfig(currentStep);
 
-        return this.validateResponse(currentStep, request.body).pipe(
-            switchMap(validationResult => {
-                if (validationResult.length > 0) {
-                    // If validation fails, render the same step with errors
-                    return this.renderStep(response, currentStep, request.body, validationResult);
-                }
+          const firstMissingRequiredSection = requiredSections.find(
+            (requiredSection) => {
+              const userProgressMap = Object.fromEntries(userProgress);
+              return !userProgressMap[requiredSection];
+            },
+          );
+          if (firstMissingRequiredSection) {
+            response.redirect(`${ConfigService.FORM_BASE_PATH}/${firstMissingRequiredSection}`);
+          } else {
+            this.renderStep({
+              response,
+              step: currentStep,
+              data: { node: currentStep, questions, errorList },
+              userData,
+              errors,
+            });
+          }
+          return data;
+        }
+      }),
+    );
+  }
 
-                // Store valid data in session and proceed
-                session.userData = { ...(session.userData || {}), ...request.body };
-                return next.handle();
-            }),
-            catchError(err => {
-                // Handle and format errors
-                return throwError(err);
-            })
+  private determineNextStep({
+    userId,
+    currentStep,
+    userResponse,
+    session,
+  }: {
+    userId?: string;
+    currentStep: string;
+    userResponse: any;
+    session: ISession;
+  }): string {
+    const stepConfig = this.journeyConfig.journeySteps[currentStep];
+    switch (stepConfig.type) {
+      case 'section': {
+        if (stepConfig.conditionalNextStep) {
+          return (
+            this.checkConditions(
+              userResponse,
+              stepConfig.conditionalNextStep,
+            ) ?? stepConfig.defaultNextStep
+          );
+        } else {
+          return stepConfig.nextStep;
+        }
+      }
+      case 'conditional': {
+        return this.handleConditionalStep(
+          userId,
+          stepConfig,
+          userResponse,
+          session,
         );
+      }
+      case 'end':
+        return null; // Journey completed
+      default:
+        throw new Error('Unknown step type');
     }
+  }
 
-    private updateUserProgress(userId: string, currentStep: string, userResponse: any) {
-        const progress = this.userProgress.get(userId) || {};
-        progress[currentStep] = userResponse;
-        this.userProgress.set(userId, progress);
+  private handleConditionalStep(
+    userId: string,
+    stepConfig: any,
+    userResponse: any,
+    session: ISession,
+  ): string {
+    if (stepConfig.repeatForEach) {
+      const progress = this.getUserProgressMap(session);
+
+      const remainingBranches = this.getRemainingBranches(
+        stepConfig.repeatForEach,
+        progress,
+      );
+
+      if (remainingBranches.length > 0) {
+        return stepConfig.branchDetails[remainingBranches[0]];
+      }
     }
+    return stepConfig;
+  }
 
-    private determineNextStep(userId: string, currentStep: string, userResponse: any): string {
-        const stepConfig = this.journeyConfig.journeySteps[currentStep];
+  private checkAllMatch(
+    conditions: IConditions['if'],
+    answers: Record<string, string>,
+  ) {
+    return Object.entries(conditions).every(([key, conditions]) => {
+      const userAnswer = answers[key];
+      if (!userAnswer) return false;
+      return conditions.includes(userAnswer);
+    });
+  }
 
-        switch(stepConfig.type) {
-            case 'section':
-                return stepConfig.nextStep;
-            case 'conditional':
-                return this.handleConditionalStep(userId, stepConfig, userResponse);
-            case 'end':
-                return null; // Journey completed
-            default:
-                throw new Error('Unknown step type');
-        }
+  private checkConditions(
+    userResponses: UserData,
+    conditions: IConditions[],
+  ): string | undefined {
+    // find the matching conditon from the config file
+    const matchingCondition = Object.entries(conditions).find(
+      ([, conditionValues]) =>
+        // ensure all parts of the if condition match the users answers
+        this.checkAllMatch(conditionValues.if, userResponses),
+    )?.[0];
+
+    return conditions[matchingCondition]?.then;
+  }
+
+  private getRemainingBranches(field: string, progress: any): string[] {
+    const selectedBranches = progress['serviceBackground']?.[field] || [];
+    const completedBranches = Object.keys(progress).filter((key) =>
+      selectedBranches.includes(key),
+    );
+    return selectedBranches.filter(
+      (branch) => !completedBranches.includes(branch),
+    );
+  }
+
+  private async validateBody(step: string, userResponse: any): Promise<any> {
+    const stepConfig = this.journeyConfig.journeySteps[step];
+    if (stepConfig?.validationDTO) {
+      const dtoKebab = stepConfig.validationDTO
+        .replace(/([a-z])([A-Z])/g, '$1-$2')
+        .toLowerCase();
+      const dtoPath = '../dto/' + dtoKebab + '.dto';
+      const { default: dtoClass } = await import(dtoPath);
+      const validationDTO = plainToInstance(dtoClass, userResponse);
+      return validate(validationDTO);
     }
+    return [];
+  }
 
-    private handleConditionalStep(userId: string, stepConfig: any, userResponse: any): string {
-        if (stepConfig.repeatForEach) {
-            const progress = this.userProgress.get(userId);
-            const remainingBranches = this.getRemainingBranches(stepConfig.repeatForEach, progress);
+  private async renderStep({
+    response,
+    step,
+    data,
+    userData,
+    errors,
+  }: IRenderStepArgs) {
+    const stepConfig = this.journeyConfig.journeySteps[step];
 
-            if (remainingBranches.length > 0) {
-                return stepConfig.branchDetails[remainingBranches[0]];
-            }
-        }
-        return stepConfig.defaultNextStep;
-    }
-
-    private checkCondition(userResponse: any, condition: any): boolean {
-        return Object.keys(condition).every(key => {
-            return userResponse[key] && condition[key].includes(userResponse[key]);
-        });
-    }
-
-    private getRemainingBranches(field: string, progress: any): string[] {
-        const selectedBranches = progress['serviceBackground']?.[field] || [];
-        const completedBranches = Object.keys(progress).filter(key => selectedBranches.includes(key));
-        return selectedBranches.filter(branch => !completedBranches.includes(branch));
-    }
-
-    private async validateResponse(step: string, userResponse: any): Promise<any> {
-        const stepConfig = this.journeyConfig.journeySteps[step];
-        if (stepConfig && stepConfig.validationDTO) {
-            const dtoClass = require(`./dtos/${stepConfig.validationDTO}`).default;
-            const validationDTO = plainToClass(dtoClass, userResponse);
-            return validate(validationDTO);
-        }
-        return [];
-    }
-
-    private async renderStep(response: Response, step: string, data: any, errors: any) {
-        const stepConfig = this.journeyConfig.journeySteps[step];
-        const template = stepConfig.template;
-        const questions = stepConfig.questions;
-        response.render(template, { questions, data, errors });
-        return response;
-    }
-
+    const template = stepConfig?.template;
+    const questions = stepConfig?.questions;
+    try {
+      response.render(`form-pages/${template}`, {
+        questions,
+        node: step,
+        data: data,
+        userData,
+        errors,
+      });
+    } catch (err) { }
+  }
 }

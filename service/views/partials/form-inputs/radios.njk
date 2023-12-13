@@ -1,0 +1,35 @@
+{% from "govuk/components/radios/macro.njk" import govukRadios %}
+{% from "govuk/components/inset-text/macro.njk" import govukInsetText %}
+{% from "govuk/components/input/macro.njk" import govukInput %}
+{% set fullQuestion = question %}
+{% set radioItems = [] %}
+{% for item in question.items %}
+    {% set conditionalItem = null %}
+    {% if item.conditional and item.conditional.type %}
+        {% set conditionalItem %}
+        {% set question = item.conditional.conditionalData %}
+        {% include "partials/form-inputs/" + item.conditional.type + ".njk" %}
+        {% endset %}
+    {% endif %}
+    {# add the html for each conditional item into the radioItems if they exist in the journey-config #}
+    {% set radioItems = (radioItems.push(
+        { 
+            value: item.value, 
+            text: item.text,
+            hint:  item.hint if item.hint else null,
+            conditional:  { 
+                html: conditionalItem
+            } if  conditionalItem and item.conditional else null
+        }), radioItems) %}
+{% endfor %}
+{{ govukRadios({
+    id: fullQuestion.id,
+    name: fullQuestion.id,
+    label: {
+    text: fullQuestion.label
+    },
+    fieldset: fullQuestion.fieldset,
+    errorMessage: errors[fullQuestion.id],
+    value: userData[fullQuestion.id],
+    items: radioItems
+ }) }}

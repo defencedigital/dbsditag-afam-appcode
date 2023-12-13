@@ -1,0 +1,57 @@
+{% from "govuk/components/error-summary/macro.njk" import govukErrorSummary %}
+{% extends "govuk/template.njk" %}
+{% from "govuk/components/button/macro.njk" import govukButton %}
+{% from "govuk/components/back-link/macro.njk" import govukBackLink %}
+{% from "govuk/components/phase-banner/macro.njk" import govukPhaseBanner %}
+{% block head %}
+  {% include "includes/head.njk" %}
+{% endblock %}
+{% block pageTitle %}
+  {{ serviceName }} - GOV.UK
+{% endblock %}
+{% block header %}
+  {% include './includes/header.njk' %}
+  <div class="govuk-width-container">
+    {{ govukPhaseBanner({
+          tag: {
+          text: "Prototype"
+          },
+          html: 'This is a design prototype, not a real service. Do not enter personal or sensitive information.'
+        }) }}
+  </div>
+{% endblock %}
+{% set mainClasses = mainClasses | default("govuk-main-wrapper--auto-spacing") %}
+{% block beforeContent %}
+  {% if not hideBackLink %}
+    {{ govukBackLink({ 
+      text: "Back",
+            href: "/" , 
+            classes: 'back-button-element'
+            }) }}
+  {% endif %}
+  {% if errors %}
+    {{ govukErrorSummary({
+          titleText: "There is a problem",
+          errorList: errorList
+        }) }}
+  {% endif %}
+{% endblock %}
+{% block bodyStart %}
+  {% if showCookieBanner %}
+    {% include "partials/cookie-banner.njk" %}
+  {% endif %}
+{% endblock %}
+{% block content %}
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+      {% block body %}{% endblock %}
+    </div>
+  </div>
+{% endblock %}
+{% block footer %}
+  {% include './includes/footer.njk' %}
+{% endblock %}
+{% block bodyEnd %}
+  <script src="/assets/js/all.js"></script>
+  <script src="/assets/js/app.js"></script>
+{% endblock %}

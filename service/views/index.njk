@@ -1,0 +1,15 @@
+{% extends 'layout.njk' %}
+{% set mainClasses = "govuk-main-wrapper--l" %}
+{% block content %}
+    <article class="govuk-body">
+        <div class="govuk-grid-row">
+            <div class="govuk-grid-column-two-thirds">
+                <h1 class="govuk-heading-l">Apply for a military service medal</h1>
+                {{ govukButton({
+                    text: "Start",
+                    href: "/service/whose-medals"
+                }) }}
+            </div>
+        </div>
+    </article>
+{% endblock %}

@@ -1,0 +1,6 @@
+
+{% if pageTitle === undefined %}
+  {# use the pageHeading from the journey-config if it exists for the current question. If pageTitle is set in the njk template above this file that will overide the title from the journey-config #}
+    {% set pageTitle = questions[0].fieldset.legend.text if questions[0].fieldset.legend.isPageHeading === true %}
+{% endif %}
+{{ "Error: "  if errors | length }} {{ pageTitle }} - {{ serviceName }} - GOV.UK
