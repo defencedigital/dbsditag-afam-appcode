@@ -2,6 +2,9 @@
 {{ govukCheckboxes({
     id: question.id,
     name: question.id,
-    items: question.options,
-    errorMessage: errors[question.id] 
+    hint: question.hint,
+    fieldset: question.fieldset,
+    items: question.items,
+    errorMessage: errors[question.id],
+    values: userData[question.id]
 }) }}

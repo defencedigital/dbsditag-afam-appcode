@@ -63,7 +63,7 @@
               "A living serviceperson"
             ]
           },
-          "then": "lasting-power-of-attorney"
+          "then": "which-services"
         },
         {
           "if": {
@@ -71,7 +71,7 @@
               "A deceased relative"
             ]
           },
-          "then": "official-next-of-kin"
+          "then": "which-services"
         }
       ],
       "defaultNextStep": "finalSection"
@@ -266,6 +266,187 @@
       ],
       "defaultNextStep": "finalSection"
     },
+    "which-services": {
+      "type": "conditional",
+      "template": "which-services.njk",
+      "validationDTO": "WhichServices",
+      "questions": [
+        {
+          "type": "checkbox",
+          "id": "whichServices",
+          "fieldset": {
+            "legend": {
+              "text": "Which services have you served in?",
+              "isPageHeading": true,
+              "classes": "govuk-fieldset__legend--l"
+            }
+          },
+          "hint": {
+            "text": "Select all that apply."
+          },
+          "pathwayDependentData": {
+            "conditions": [
+              {
+                "if": {
+                  "whoseMedals": [
+                    "My own"
+                  ]
+                },
+                "then": {
+                  "fieldset": {
+                    "legend": {
+                      "text": "Which services have you served in?",
+                      "isPageHeading": true,
+                      "classes": "govuk-fieldset__legend--l"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "whoseMedals": [
+                    "A living serviceperson"
+                  ]
+                },
+                "then": {
+                  "fieldset": {
+                    "legend": {
+                      "text": "Which services has $servicePersonName served in?",
+                      "isPageHeading": true,
+                      "classes": "govuk-fieldset__legend--l"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "whoseMedals": [
+                    "A deceased relative"
+                  ]
+                },
+                "then": {
+                  "fieldset": {
+                    "legend": {
+                      "text": "Which services did $servicePersonName serve in?",
+                      "isPageHeading": true,
+                      "classes": "govuk-fieldset__legend--l"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "items": [
+            {
+              "value": "Royal Navy or Royal Marines",
+              "text": "Royal Navy or Royal Marines"
+            },
+            {
+              "value": "Army",
+              "text": "Army"
+            },
+            {
+              "value": "Royal Air Force",
+              "text": "Royal Air Force"
+            },
+            {
+              "value": "Royal Fleet Auxilary",
+              "text": "Royal Fleet Auxilary"
+            },
+            {
+              "value": "Cadets",
+              "text": "Cadets"
+            },
+            {
+              "value": "Ministry of Defence",
+              "text": "Ministry of Defence",
+              "hint": {
+                "text": "For example, civil servant or approved contractor"
+              }
+            },
+            {
+              "value": "Home Guard",
+              "text": "Home Guard"
+            },
+            {
+              "value": "Other",
+              "text": "Other",
+              "hint": {
+                "text": "For example, fire, police, ambulance or prison services, Navy, Army and Air Force Institutes (NAAFI), Merchant Navy or Royal Observer Corps"
+              }
+            }
+          ]
+        }
+      ],
+      "nextStep": "branchSpecificQuestions",
+      "requiredSections": [
+        "whose-medals"
+      ],
+      "repeatForEach": "whichServices",
+      "branchDetails": {
+        "Army": "army-service-type",
+        "Royal Navy or Royal Marines": "navy-service-type",
+        "Royal Fleet Auxilary": "royal-fleet",
+        "Cadets": "cadets"
+      }
+    },
+    "service-type": {
+      "type": "section",
+      "template": "service-type.njk",
+      "questions": [
+        {
+          "type": "radios",
+          "id": "serviceType",
+          "fieldset": {
+            "legend": {
+              "text": "Select service type?",
+              "isPageHeading": true,
+              "classes": "govuk-fieldset__legend--l"
+            }
+          },
+          "items": [
+            {
+              "value": "Regular",
+              "text": "Regular"
+            },
+            {
+              "value": "Reserve",
+              "text": "Reserve"
+            }
+          ]
+        }
+      ]
+    },
+    "army-service-type": {
+      "type": "section",
+      "template": "service-type.njk",
+      "questions": [
+        {
+          "type": "radios",
+          "id": "serviceType",
+          "fieldset": {
+            "legend": {
+              "text": "What was your service type in the army?",
+              "isPageHeading": true,
+              "classes": "govuk-fieldset__legend--l"
+            }
+          },
+          "hint": {
+            "text": "If you served more than once select your most recent service type."
+          },
+          "items": [
+            {
+              "value": "Regular",
+              "text": "Regular"
+            },
+            {
+              "value": "Reservist",
+              "text": "Reservist"
+            }
+          ]
+        }
+      ]
+    },
     "cannot-complete": {
       "type": "section",
       "template": "cannot-complete.njk",
@@ -303,11 +484,10 @@
     "branchSpecificQuestions": {
       "type": "conditional",
       "template": "branch-specific-questions.njk",
-      "repeatForEach": "armedForces",
+      "repeatForEach": "whichServices",
       "branchDetails": {
         "Army": "armyDetails",
-        "Navy": "navyDetails",
-        "AirForce": "airForceDetails"
+        "Cadets": "cadetsDetails"
       },
       "validationDTO": "BranchSpecificQuestionsDTO",
       "defaultNextStep": "finalSection"

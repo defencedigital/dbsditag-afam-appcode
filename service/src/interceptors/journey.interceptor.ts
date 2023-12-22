@@ -22,6 +22,11 @@ type IConditions = {
   if: Record<string, string[]>;
   then: string;
 };
+interface IApplicationTypes {
+  applyingForSelf: boolean;
+  applyingForAServiceperson: boolean;
+  applyingForADeceasedRelative: boolean;
+}
 
 @Injectable()
 export class JourneyInterceptor implements NestInterceptor {
@@ -30,11 +35,17 @@ export class JourneyInterceptor implements NestInterceptor {
 
   private addErrors(request: IRequest, validationErrors) {
     const { session, body } = request ?? {};
+
     session.flash = {};
     session.flash.errors = validationErrors.reduce(
       (acc, { property, constraints }) => {
+        // TODO move this into the config service as a const
+        const SERVICEPERSON_NAME_CONFIG_VARIABLE = '$servicePersonName';
         acc[property] = {
-          text: constraints[Object.keys(constraints)[0]],
+          text: this.replaceServicepersonName(
+            constraints[Object.keys(constraints)[0]],
+            request.session,
+          ),
           id: property,
         };
         return acc;
@@ -45,7 +56,10 @@ export class JourneyInterceptor implements NestInterceptor {
     session.flash.errorList = validationErrors.map(
       ({ property, constraints }) => {
         return {
-          text: constraints[Object.keys(constraints)[0]],
+          text: this.replaceServicepersonName(
+            constraints[Object.keys(constraints)[0]],
+            request.session,
+          ),
           href: `#${property}`,
         };
       },
@@ -53,6 +67,54 @@ export class JourneyInterceptor implements NestInterceptor {
 
     session.flash.oldUserData = body;
     delete session.flash.oldUserData._csrf;
+  }
+
+  private replaceServicepersonName(errorMessage: string, session: ISession) {
+    // TODO move this into the config service as a const
+    const SERVICEPERSON_NAME_CONFIG_VARIABLE = '$servicePersonName';
+
+    const doesIncludeKeyword = errorMessage?.includes?.(
+      SERVICEPERSON_NAME_CONFIG_VARIABLE,
+    );
+    if (errorMessage && doesIncludeKeyword) {
+      // if the error message contains the variable in the string replace with the servicepersons name from the session if available
+      return errorMessage.replace(
+        SERVICEPERSON_NAME_CONFIG_VARIABLE,
+        this.getServicepersonName(session),
+      );
+    } else {
+      return errorMessage;
+    }
+  }
+
+  private getServicepersonName(session: ISession) {
+    return session?.userData?.servicepersonFirstName ?? 'the serviceperson';
+  }
+  private getQuestionData(questions: any[] = [], request: IRequest) {
+    //if there are no pathway dependent data then just return the questions as they are
+    if (questions.every((question) => !question.pathwayDependentData))
+      return questions;
+    const updatedQuestions = [];
+    questions.map((question) => {
+      if (question.pathwayDependentData) {
+        const matchingCondition = this.checkConditions(
+          { ...request.session.userData, ...request.body },
+          question.pathwayDependentData.conditions,
+        );
+        if (
+          matchingCondition &&
+          (this.applyingForAServiceperson(request.session) ||
+            this.applyingForADeceasedRelative)
+        ) {
+          // add the servicepersons name from the session if availble.
+          this.addServicepersonName(matchingCondition, request.session);
+          //  include any question data that may be different based on the pathway, comes from the config.json
+          updatedQuestions.push({ ...question, ...matchingCondition });
+        } else updatedQuestions.push(question);
+      }
+    });
+
+    return updatedQuestions;
   }
 
   private getStepConfig(currentStepString: string): {
@@ -75,6 +137,54 @@ export class JourneyInterceptor implements NestInterceptor {
     return userProgressMap;
   }
 
+  private applyingForSelf(session: ISession) {
+    return session?.userData?.whoseMedals === ConfigService.MY_OWN;
+  }
+
+  private applyingForAServiceperson(session: ISession) {
+    return (
+      session?.userData?.whoseMedals === ConfigService.A_LIVING_SERVICEPERSON
+    );
+  }
+  private applyingForADeceasedRelative(session: ISession) {
+    return session?.userData?.whoseMedals === ConfigService.A_DECEASED_RELATIVE;
+  }
+  // functions to determine the current pathway
+  private getApplicantType(session: ISession) {
+    return {
+      applyingForSelf: this.applyingForSelf(session),
+      applyingForAServiceperson: this.applyingForAServiceperson(session),
+      applyingForADeceasedRelative: this.applyingForADeceasedRelative(session),
+    };
+  }
+
+  private addServicepersonName(
+    matchingCondition: {
+      fieldset?: {
+        legend?: {
+          text?: string;
+        };
+      };
+    },
+    session: ISession,
+  ) {
+    const fieldSetName = matchingCondition.fieldset.legend.text;
+    if (typeof fieldSetName !== 'string') return matchingCondition;
+    // TODO move this into the config service as a const
+    const SERVICEPERSON_NAME_CONFIG_VARIABLE = '$servicePersonName';
+    const doesIncludeKeyword = fieldSetName?.includes?.(
+      SERVICEPERSON_NAME_CONFIG_VARIABLE,
+    );
+    if (fieldSetName && doesIncludeKeyword) {
+      // replace the question title with the servicepersons name if it is in the session
+      matchingCondition.fieldset.legend.text = fieldSetName.replace(
+        SERVICEPERSON_NAME_CONFIG_VARIABLE,
+        this.getServicepersonName(session),
+      );
+      return matchingCondition;
+    } else return matchingCondition;
+  }
+
   updateUserSessionData({
     currentStep,
     requestBody,
@@ -85,9 +195,10 @@ export class JourneyInterceptor implements NestInterceptor {
     session: ISession;
   }) {
     // add the form answers
+    if (requestBody._csrf) delete requestBody._csrf;
     session.userData = { ...(session.userData || {}), ...requestBody };
     const userProgressMap = this.getUserProgressMap(session);
-    userProgressMap.set(currentStep, true);
+    userProgressMap.set(currentStep, requestBody);
 
     const objectFromMap = Object.fromEntries(userProgressMap);
     session.userProgress = objectFromMap;
@@ -105,25 +216,30 @@ export class JourneyInterceptor implements NestInterceptor {
     const session = request.session;
     const currentStep = params.node ?? null;
     const stepConfig = this.journeyConfig.journeySteps[currentStep];
-    const questions = stepConfig?.questions;
     const userProgress = this.getUserProgressMap(session);
+
+    const questions = this.getQuestionData(stepConfig?.questions, request);
+    // not used currently but could be used to alter the logic based on the current route
+    const applicantType = this.getApplicantType(session);
 
     if (request.method === 'POST') {
       this.validateBody(currentStep, request.body).then((validationErrors) => {
         if (validationErrors.length > 0) {
+          // format errors here if appropriate
           this.addErrors(request, validationErrors);
           request.gotoNext = `${ConfigService.FORM_BASE_PATH}/${currentStep}`;
         } else {
-          const nextStep = this.determineNextStep({
-            currentStep,
-            userResponse: { ...request.session.userData, ...request.body },
-            session,
-          });
-
           this.updateUserSessionData({
             session,
             requestBody: request.body,
             currentStep,
+          });
+
+
+          const nextStep = this.determineNextStep({
+            currentStep,
+            userResponse: { ...request.session.userData },
+            session,
           });
 
           request.gotoNext = `${ConfigService.FORM_BASE_PATH}/${nextStep}`;
@@ -145,7 +261,9 @@ export class JourneyInterceptor implements NestInterceptor {
             },
           );
           if (firstMissingRequiredSection) {
-            response.redirect(`${ConfigService.FORM_BASE_PATH}/${firstMissingRequiredSection}`);
+            response.redirect(
+              `${ConfigService.FORM_BASE_PATH}/${firstMissingRequiredSection}`,
+            );
           } else {
             this.renderStep({
               response,
@@ -207,12 +325,13 @@ export class JourneyInterceptor implements NestInterceptor {
     userResponse: any,
     session: ISession,
   ): string {
+    //  TODO finalise logic to allow the questions to loop for each selected service before returning to the main flow
     if (stepConfig.repeatForEach) {
       const progress = this.getUserProgressMap(session);
 
       const remainingBranches = this.getRemainingBranches(
         stepConfig.repeatForEach,
-        progress,
+        Object.fromEntries(progress)
       );
 
       if (remainingBranches.length > 0) {
@@ -236,7 +355,7 @@ export class JourneyInterceptor implements NestInterceptor {
   private checkConditions(
     userResponses: UserData,
     conditions: IConditions[],
-  ): string | undefined {
+  ): any {
     // find the matching conditon from the config file
     const matchingCondition = Object.entries(conditions).find(
       ([, conditionValues]) =>
@@ -248,16 +367,24 @@ export class JourneyInterceptor implements NestInterceptor {
   }
 
   private getRemainingBranches(field: string, progress: any): string[] {
-    const selectedBranches = progress['serviceBackground']?.[field] || [];
-    const completedBranches = Object.keys(progress).filter((key) =>
-      selectedBranches.includes(key),
+
+    const selectedBranches = progress['which-services']?.[field] || [];
+    // TODO complete logic to update the completed branches when all the questions in the current service loop have been completed
+    const completedBranches = Object.keys(progress).filter((key) => {
+      // TODO fix bug where array methods fail if one checkbox has been selected and saved to the session as it is not saved as an array
+      return selectedBranches.includes(key)
+    }
     );
     return selectedBranches.filter(
       (branch) => !completedBranches.includes(branch),
     );
   }
 
-  private async validateBody(step: string, userResponse: any): Promise<any> {
+  private async validateBody(
+    step: string,
+    userResponse: any,
+    dtoGroup?: string,
+  ): Promise<any> {
     const stepConfig = this.journeyConfig.journeySteps[step];
     if (stepConfig?.validationDTO) {
       const dtoKebab = stepConfig.validationDTO
@@ -266,7 +393,8 @@ export class JourneyInterceptor implements NestInterceptor {
       const dtoPath = '../dto/' + dtoKebab + '.dto';
       const { default: dtoClass } = await import(dtoPath);
       const validationDTO = plainToInstance(dtoClass, userResponse);
-      return validate(validationDTO);
+
+      return await validate(validationDTO);
     }
     return [];
   }
@@ -281,10 +409,9 @@ export class JourneyInterceptor implements NestInterceptor {
     const stepConfig = this.journeyConfig.journeySteps[step];
 
     const template = stepConfig?.template;
-    const questions = stepConfig?.questions;
     try {
       response.render(`form-pages/${template}`, {
-        questions,
+        questions: data.questions,
         node: step,
         data: data,
         userData,

@@ -8,6 +8,8 @@ export enum FormKeysEnum {
   ARE_YOU_ACTIVE = 'areYouActive',
   VETERANS_BADGE = 'veteransBadge',
   WHICH_MEDALS = 'whichMedals',
+  WHICH_SERVICES = 'whichServices',
+  SERVICEPERSON_FIRST_NAME = 'servicepersonFirstName',
 }
 
 export interface IsDayAfterArgs {

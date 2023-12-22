@@ -5,7 +5,7 @@ export class ConfigService {
   static YES = 'Yes';
   static NO = 'No';
   static I_DONT_KNOW = `I don't know`;
-  static FORM_BASE_PATH = `/service`
+  static FORM_BASE_PATH = `/service`;
 
   static SECTION_WHOSE_MEDAL = 1;
   static SECTION_ACTIVE_SERVICE = 2;
@@ -58,6 +58,17 @@ export class ConfigService {
     ConfigService.MY_OWN,
     ConfigService.A_LIVING_SERVICEPERSON,
     ConfigService.A_DECEASED_RELATIVE,
+  ];
+
+  static SERVICE_TYPES: [
+    'Royal Navy or Royal Marines',
+    'Army',
+    'Royal Air Force',
+    'Royal Fleet Auxilary',
+    'Cadets',
+    'Ministry of Defence',
+    'Home Guard',
+    'Other',
   ];
 
   static MAX_UPLOAD_FILE_SIZE = 10000000;
