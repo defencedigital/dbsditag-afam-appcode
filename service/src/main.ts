@@ -93,7 +93,7 @@ async function bootstrap() {
     }),
   );
 
-  app.use([cookieParser(process.env.COOKIE_PARSER_KEY)]);
+  app.use([cookieParser(process.env.§)]);
   app.useGlobalFilters(new HttpExceptionFilter());
   app.setLocal('serviceName', 'Apply for a military medal');
   app.setLocal('saveButtonLabel', 'Continue');
