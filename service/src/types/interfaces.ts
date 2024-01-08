@@ -69,7 +69,7 @@ interface ILocals extends Locals {
 
 export interface IRequest extends Request {
   session: ISession;
-  gotoNext?: string;
+  // gotoNext?: string;
   csrfToken: () => string;
   cookies: any;
 }

@@ -276,7 +276,7 @@
           "id": "whichServices",
           "fieldset": {
             "legend": {
-              "text": "Which services have you served in?",
+              "text": "Which services have you served in updated?",
               "isPageHeading": true,
               "classes": "govuk-fieldset__legend--l"
             }
@@ -295,7 +295,7 @@
                 "then": {
                   "fieldset": {
                     "legend": {
-                      "text": "Which services have you served in?",
+                      "text": "Which services have you served in updated based on route {{ whoseMedals | the serviceperson }}    ?",
                       "isPageHeading": true,
                       "classes": "govuk-fieldset__legend--l"
                     }
@@ -311,7 +311,7 @@
                 "then": {
                   "fieldset": {
                     "legend": {
-                      "text": "Which services has $servicePersonName served in?",
+                      "text": "Which services has {{ whoseMedals | the serviceperson }} served in?",
                       "isPageHeading": true,
                       "classes": "govuk-fieldset__legend--l"
                     }
@@ -327,7 +327,7 @@
                 "then": {
                   "fieldset": {
                     "legend": {
-                      "text": "Which services did $servicePersonName serve in?",
+                      "text": "Which services did {{ whoseMedals | the serviceperson }} serve in?",
                       "isPageHeading": true,
                       "classes": "govuk-fieldset__legend--l"
                     }

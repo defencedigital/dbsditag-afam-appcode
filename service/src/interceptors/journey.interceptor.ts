@@ -40,7 +40,7 @@ export class JourneyInterceptor implements NestInterceptor {
     session.flash.errors = validationErrors.reduce(
       (acc, { property, constraints }) => {
         // TODO move this into the config service as a const
-        const SERVICEPERSON_NAME_CONFIG_VARIABLE = '$servicePersonName';
+        // const SERVICEPERSON_NAME_CONFIG_VARIABLE = '$servicePersonName';
         acc[property] = {
           text: this.replaceServicepersonName(
             constraints[Object.keys(constraints)[0]],
@@ -106,8 +106,6 @@ export class JourneyInterceptor implements NestInterceptor {
           (this.applyingForAServiceperson(request.session) ||
             this.applyingForADeceasedRelative)
         ) {
-          // add the servicepersons name from the session if availble.
-          this.addServicepersonName(matchingCondition, request.session);
           //  include any question data that may be different based on the pathway, comes from the config.json
           updatedQuestions.push({ ...question, ...matchingCondition });
         } else updatedQuestions.push(question);
@@ -208,6 +206,42 @@ export class JourneyInterceptor implements NestInterceptor {
     this.reflector = reflector;
   }
 
+  addSessionDataToText(obj, session) {
+    for (var currentKey in obj) {
+      if (typeof obj[currentKey] === "object" && obj[currentKey] !== null) {
+        this.addSessionDataToText(obj[currentKey], session);
+      } else {
+        if (typeof obj[currentKey] === 'string') {
+          const regexp = new RegExp('{(.*?)}');
+
+          if (regexp.test(obj[currentKey])) {
+            obj[currentKey] = obj[currentKey].replace(
+              // /\{[^\}]+\}/g,
+              /\{{2}[^\}]+\}{2}/g,
+              function (string) {
+                const fieldNames = string
+                  .split('|')
+                  .map((fieldName) =>
+                    fieldName.replace('{{', '').replace('}}', '').trim(),
+                  );
+
+                const sessionAnswer = fieldNames.find(
+                  (currentKey) => session?.userData?.[currentKey],
+                );
+
+                const replacementText =
+                  session?.userData?.[sessionAnswer] ?? fieldNames.at(-1);
+                return replacementText;
+              },
+            );
+          }
+
+        }
+      }
+    }
+  }
+
+
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const ctx = context.switchToHttp();
     const request = ctx.getRequest<IRequest>();
@@ -217,9 +251,8 @@ export class JourneyInterceptor implements NestInterceptor {
     const currentStep = params.node ?? null;
     const stepConfig = this.journeyConfig.journeySteps[currentStep];
     const userProgress = this.getUserProgressMap(session);
+    const questionsOriginal = this.getQuestionData(stepConfig?.questions, request);
 
-    const questions = this.getQuestionData(stepConfig?.questions, request);
-    // not used currently but could be used to alter the logic based on the current route
     const applicantType = this.getApplicantType(session);
 
     if (request.method === 'POST') {
@@ -235,10 +268,9 @@ export class JourneyInterceptor implements NestInterceptor {
             currentStep,
           });
 
-
           const nextStep = this.determineNextStep({
             currentStep,
-            userResponse: { ...request.session.userData },
+            userResponse: session.userData,
             session,
           });
 
@@ -246,6 +278,12 @@ export class JourneyInterceptor implements NestInterceptor {
         }
       });
     }
+
+
+    let questions = JSON.parse(JSON.stringify(questionsOriginal))
+    // TODO use the below deep clone function for node 17+ and remove the json.parse above
+    // let questions = structuredClone(questionsOriginal)
+    this.addSessionDataToText(questions, session);
 
     return next.handle().pipe(
       map(async (data) => {
@@ -331,7 +369,7 @@ export class JourneyInterceptor implements NestInterceptor {
 
       const remainingBranches = this.getRemainingBranches(
         stepConfig.repeatForEach,
-        Object.fromEntries(progress)
+        Object.fromEntries(progress),
       );
 
       if (remainingBranches.length > 0) {
@@ -367,14 +405,12 @@ export class JourneyInterceptor implements NestInterceptor {
   }
 
   private getRemainingBranches(field: string, progress: any): string[] {
-
     const selectedBranches = progress['which-services']?.[field] || [];
     // TODO complete logic to update the completed branches when all the questions in the current service loop have been completed
     const completedBranches = Object.keys(progress).filter((key) => {
       // TODO fix bug where array methods fail if one checkbox has been selected and saved to the session as it is not saved as an array
-      return selectedBranches.includes(key)
-    }
-    );
+      return selectedBranches.includes(key);
+    });
     return selectedBranches.filter(
       (branch) => !completedBranches.includes(branch),
     );
@@ -385,6 +421,7 @@ export class JourneyInterceptor implements NestInterceptor {
     userResponse: any,
     dtoGroup?: string,
   ): Promise<any> {
+    // return []
     const stepConfig = this.journeyConfig.journeySteps[step];
     if (stepConfig?.validationDTO) {
       const dtoKebab = stepConfig.validationDTO
@@ -392,6 +429,7 @@ export class JourneyInterceptor implements NestInterceptor {
         .toLowerCase();
       const dtoPath = '../dto/' + dtoKebab + '.dto';
       const { default: dtoClass } = await import(dtoPath);
+      console.log('DTO Path == ', dtoPath)
       const validationDTO = plainToInstance(dtoClass, userResponse);
 
       return await validate(validationDTO);
